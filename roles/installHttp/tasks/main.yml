@@ -1,0 +1,56 @@
+--- 
+- name : Install http server
+  yum:
+    name: httpd
+    state: present
+
+- name : Making sure Http server is runnning
+  service: 
+    name: httpd
+    state: started
+
+- name: copy html file to http server
+  template:
+    src: index.html
+    dest: /var/www/html/index.html
+
+- name: copy httpd.conf file to http server
+  template:
+    src: httpd.conf
+    dest: /etc/httpd/conf/httpd.conf
+
+- name: Installing mod_ssl 
+  yum:
+    name: mod_ssl
+    state: present
+
+- name: Installing openssl
+  yum:
+    name: openssl
+    state: present
+
+- name: Generate RSA key
+  command: openssl genrsa -out {{ ssl_certs_privkey_path }} {{ ssl_certs_key_size }} creates={{ ssl_certs_privkey_path }}
+
+- name: RSA key file ownership
+  file: path={{ ssl_certs_privkey_path }} owner={{ ssl_certs_path_owner }} group={{ ssl_certs_path_group }} mode={{ ssl_certs_mode }}
+
+- name: Generate CSR
+  command: openssl req -new -sha256 -subj "{{ ssl_certs_fields }}" -key {{ ssl_certs_privkey_path }} -out {{ ssl_certs_csr_path }} creates={{ ssl_certs_csr_path }}
+
+- name: CSR file ownership
+  file: path={{ ssl_certs_csr_path }} owner={{ ssl_certs_path_owner }} group={{ ssl_certs_path_group }} mode={{ ssl_certs_mode }}
+
+- name: Generate self-signed SSL certificate
+  command: openssl req -nodes -x509 -sha256 -days {{ ssl_certs_days }} -in {{ ssl_certs_csr_path }} -key {{ ssl_certs_privkey_path }} -out {{ ssl_certs_cert_path }} -extensions v3_ca creates={{ ssl_certs_cert_path }}
+  when: ssl_certs_generate_self_signed
+
+- name: Self-signed SSL certificate file ownership
+  file: path={{ ssl_certs_cert_path }} owner={{ ssl_certs_path_owner }} group={{ ssl_certs_path_group }} mode={{ ssl_certs_mode }}
+  when: ssl_certs_generate_self_signed
+
+
+- name: restart http server
+  service: 
+    name: httpd
+    state: restarted
